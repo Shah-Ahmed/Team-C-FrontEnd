@@ -4,17 +4,19 @@ import { AuthProvider } from "@/context/AuthContext";
 import Navbar from "@/components/Navbar";
 
 export const metadata: Metadata = {
-  title: "TechProject",
-  description: "Organizations and users management (Next.js + Firebase)",
+  title: "TechProject - Team C",
+  description: "AI Content and Social Automation Platform",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-dark text-white">
+      <body style={{ backgroundColor: '#0B1220', color: '#F8FAFC', minHeight: '100vh', margin: 0 }}>
         <AuthProvider>
           <Navbar />
-          <main className="container py-4">{children}</main>
+          <main style={{ maxWidth: '1050px', margin: '0 auto', padding: '24px 20px 60px' }}>
+            {children}
+          </main>
         </AuthProvider>
       </body>
     </html>

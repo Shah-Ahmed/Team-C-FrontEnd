@@ -47,16 +47,14 @@ export default function SentimentDashboardPage() {
   };
 
   return (
-    <div style={{ backgroundColor: '#0B1220', minHeight: '100vh', color: '#FFFFFF', padding: '30px' }}>
-      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-        
-        {/* Header */}
-        <div style={{ marginBottom: '30px' }}>
-          <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: '#FFFFFF' }}>Sentiment Dashboard</h1>
-          <p style={{ color: '#94A3B8', fontSize: '14px' }}>
-            Analyze real-time customer feedback, comments, and post engagement sentiment.
-          </p>
-        </div>
+    <div>
+      {/* Header */}
+      <div style={{ marginBottom: '28px' }}>
+        <h1 style={{ fontSize: '26px', fontWeight: 'bold', color: '#FFFFFF', marginBottom: '6px' }}>Sentiment Dashboard</h1>
+        <p style={{ color: '#94A3B8', fontSize: '14px', margin: 0 }}>
+          Analyze real-time customer feedback, comments, and post engagement sentiment.
+        </p>
+      </div>
 
         {/* Analytics Overview Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' }}>
@@ -97,7 +95,7 @@ export default function SentimentDashboardPage() {
                     borderRadius: '8px',
                     border: '1px solid #334155',
                     display: 'flex',
-                    justify: 'space-between',
+                    justifyContent: 'space-between',
                     alignItems: 'center'
                   }}
                 >
@@ -134,8 +132,6 @@ export default function SentimentDashboardPage() {
             })}
           </div>
         </div>
-
       </div>
-    </div>
-  );
+    );
 }

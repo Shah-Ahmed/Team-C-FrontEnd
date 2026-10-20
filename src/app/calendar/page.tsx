@@ -47,16 +47,14 @@ export default function CalendarPage() {
   };
 
   return (
-    <div style={{ backgroundColor: '#0B1220', minHeight: '100vh', color: '#FFFFFF', padding: '30px' }}>
-      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-        
-        {/* Header */}
-        <div style={{ marginBottom: '30px' }}>
-          <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: '#FFFFFF' }}>Social Scheduling Calendar</h1>
-          <p style={{ color: '#94A3B8', fontSize: '14px' }}>
-            Plan, schedule, and track automated publication times across platforms.
-          </p>
-        </div>
+    <div>
+      {/* Header */}
+      <div style={{ marginBottom: '28px' }}>
+        <h1 style={{ fontSize: '26px', fontWeight: 'bold', color: '#FFFFFF', marginBottom: '6px' }}>Social Scheduling Calendar</h1>
+        <p style={{ color: '#94A3B8', fontSize: '14px', margin: 0 }}>
+          Plan, schedule, and track automated publication times across platforms.
+        </p>
+      </div>
 
         {/* Scheduled Posts List */}
         <div style={{ backgroundColor: '#111C31', padding: '24px', borderRadius: '12px', border: '1px solid #1E293B' }}>
@@ -76,7 +74,7 @@ export default function CalendarPage() {
                     borderRadius: '8px',
                     border: '1px solid #334155',
                     display: 'flex',
-                    justify: 'space-between',
+                    justifyContent: 'space-between',
                     alignItems: 'center'
                   }}
                 >
@@ -90,7 +88,7 @@ export default function CalendarPage() {
                       </span>
                     </div>
                     <span style={{ fontSize: '12px', color: '#94A3B8' }}>
-                      📅 {post.scheduledTime}
+                      Scheduled: {post.scheduledTime}
                     </span>
                   </div>
 
@@ -113,8 +111,6 @@ export default function CalendarPage() {
             })}
           </div>
         </div>
-
       </div>
-    </div>
-  );
+    );
 }

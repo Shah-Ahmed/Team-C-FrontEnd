@@ -203,12 +203,30 @@ export default function DraftLibraryPage() {
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #1E293B' }}>
+                  <Link
+                    href={`/calendar?draftId=${draft.id}`}
+                    style={{
+                      flex: 1,
+                      padding: '8px',
+                      backgroundColor: '#3B82F6',
+                      color: '#FFFFFF',
+                      borderRadius: '6px',
+                      textAlign: 'center',
+                      textDecoration: 'none',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    Schedule Post
+                  </Link>
                   <button
                     onClick={() => handleDelete(draft.id)}
                     disabled={deletingId === draft.id}
                     style={{
-                      flex: 1,
-                      padding: '8px',
+                      padding: '8px 16px',
                       backgroundColor: 'transparent',
                       border: '1px solid #F43F5E',
                       color: '#F43F5E',

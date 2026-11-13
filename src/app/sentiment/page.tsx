@@ -10,10 +10,11 @@ interface Review {
   comment: string;
   sentiment: 'Positive' | 'Neutral' | 'Negative';
   score: number;
+  source?: string;
 }
 
 export default function SentimentDashboardPage() {
-  const { profile, loading: authLoading } = useAuth();
+  const { loading: authLoading } = useAuth();
 
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,13 +24,18 @@ export default function SentimentDashboardPage() {
     negative: { count: 0, percentage: 0 },
   });
 
-  // Analyze Review Form State
+  // Analyze review form state
   const [author, setAuthor] = useState('');
   const [newText, setNewText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Load real sentiment data and metrics from backend for the user's organization
+  // Instagram comment sync state
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [autoSync, setAutoSync] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<{ type: 'info' | 'error'; text: string } | null>(null);
+
+  // Load sentiment records and aggregate metrics from backend
   const loadSentimentData = useCallback(async () => {
     setLoading(true);
     try {
@@ -39,6 +45,7 @@ export default function SentimentDashboardPage() {
         text: string;
         sentiment: string;
         score: number;
+        source?: string;
       }>>('/api/ai/sentiment');
 
       if (Array.isArray(data)) {
@@ -49,6 +56,7 @@ export default function SentimentDashboardPage() {
             comment: item.text,
             sentiment: (item.sentiment.charAt(0).toUpperCase() + item.sentiment.slice(1).toLowerCase()) as Review['sentiment'],
             score: item.score,
+            source: item.source,
           }))
         );
       }
@@ -63,20 +71,71 @@ export default function SentimentDashboardPage() {
         setSummary(sumData);
       }
     } catch {
-      // Retain existing state on failure
+      // Retain existing state on transient errors
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Fetch only after AuthContext has resolved the user's session
   useEffect(() => {
     if (!authLoading) {
       loadSentimentData();
     }
   }, [authLoading, loadSentimentData]);
 
-  // Submit feedback for real-time AI sentiment analysis: POST /api/ai/sentiment
+  // Fetch recent Instagram comments and classify any new ones
+  const handleSyncInstagram = useCallback(
+    async (silent = false) => {
+      if (!silent) {
+        setIsSyncing(true);
+        setSyncMessage(null);
+      }
+      try {
+        const result = await apiFetch<{
+          syncedCount: number;
+          totalFetched: number;
+        }>('/api/ai/sentiment/sync-instagram', { method: 'POST' });
+
+        if (result.syncedCount > 0) {
+          setSyncMessage({
+            type: 'info',
+            text: `Synced ${result.syncedCount} new social comment(s) out of ${result.totalFetched} fetched.`,
+          });
+          await loadSentimentData();
+        } else if (!silent) {
+          setSyncMessage({
+            type: 'info',
+            text: `Checked ${result.totalFetched} social comment(s). Everything is already up to date.`,
+          });
+        }
+      } catch (err) {
+        if (!silent) {
+          setSyncMessage({
+            type: 'error',
+            text: errorMessage(err),
+          });
+        }
+      } finally {
+        if (!silent) {
+          setIsSyncing(false);
+        }
+      }
+    },
+    [loadSentimentData]
+  );
+
+  // Poll Instagram comments every 15 seconds while auto-sync is enabled
+  useEffect(() => {
+    if (authLoading || !autoSync) return;
+
+    const intervalId = setInterval(() => {
+      handleSyncInstagram(true);
+    }, 15000);
+
+    return () => clearInterval(intervalId);
+  }, [authLoading, autoSync, handleSyncInstagram]);
+
+  // Submit manual feedback for sentiment classification
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -91,15 +150,15 @@ export default function SentimentDashboardPage() {
         text: string;
         sentiment: string;
         score: number;
+        source?: string;
       }>('/api/ai/sentiment', {
         method: 'POST',
         body: {
           text: newText.trim(),
           author: author.trim() || undefined,
-        }
+        },
       });
 
-      // Optimistically add to reviews list so it is immediately visible
       if (result) {
         const capitalized = (result.sentiment.charAt(0).toUpperCase() + result.sentiment.slice(1).toLowerCase()) as Review['sentiment'];
         setReviews((prev) => [
@@ -109,8 +168,9 @@ export default function SentimentDashboardPage() {
             comment: result.text,
             sentiment: capitalized,
             score: result.score,
+            source: result.source,
           },
-          ...prev
+          ...prev,
         ]);
       }
 
@@ -142,32 +202,105 @@ export default function SentimentDashboardPage() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ fontSize: '26px', fontWeight: 'bold', color: '#FFFFFF', marginBottom: '6px' }}>Sentiment Dashboard</h1>
+          <h1 style={{ fontSize: '26px', fontWeight: 'bold', color: '#FFFFFF', marginBottom: '6px' }}>
+            Sentiment Dashboard
+          </h1>
           <p style={{ color: '#94A3B8', fontSize: '14px', margin: 0 }}>
-            Analyze real-time customer feedback, comments, and post engagement sentiment.
+            Analyze real-time customer feedback, Facebook and Instagram comments, and post engagement sentiment.
           </p>
         </div>
-        <button
-          onClick={loadSentimentData}
-          style={{
-            padding: '8px 14px',
-            backgroundColor: 'transparent',
-            color: '#94A3B8',
-            border: '1px solid #334155',
-            borderRadius: '6px',
-            fontSize: '13px',
-            fontWeight: '500',
-            cursor: 'pointer'
-          }}
-        >
-          Refresh Data
-        </button>
+
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => handleSyncInstagram(false)}
+            disabled={isSyncing}
+            style={{
+              padding: '8px 14px',
+              backgroundColor: '#8B5CF6',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontWeight: '600',
+              cursor: isSyncing ? 'not-allowed' : 'pointer',
+              opacity: isSyncing ? 0.6 : 1,
+            }}
+          >
+            {isSyncing ? 'Syncing Comments...' : 'Sync Social Comments'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAutoSync((prev) => !prev)}
+            style={{
+              padding: '8px 14px',
+              backgroundColor: autoSync ? '#064E3B' : 'transparent',
+              color: autoSync ? '#10B981' : '#94A3B8',
+              border: `1px solid ${autoSync ? '#10B981' : '#334155'}`,
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontWeight: '500',
+              cursor: 'pointer',
+            }}
+          >
+            {autoSync ? 'Auto-Sync: ON (15s)' : 'Auto-Sync (15s)'}
+          </button>
+
+          <button
+            type="button"
+            onClick={loadSentimentData}
+            style={{
+              padding: '8px 14px',
+              backgroundColor: 'transparent',
+              color: '#94A3B8',
+              border: '1px solid #334155',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontWeight: '500',
+              cursor: 'pointer',
+            }}
+          >
+            Refresh Data
+          </button>
+        </div>
       </div>
 
-      {/* Analytics Overview Cards */}
+      {syncMessage && (
+        <div
+          style={{
+            backgroundColor: syncMessage.type === 'error' ? '#4C0519' : '#082F49',
+            border: `1px solid ${syncMessage.type === 'error' ? '#F43F5E' : '#0284C7'}`,
+            color: syncMessage.type === 'error' ? '#FECDD3' : '#BAE6FD',
+            padding: '12px 16px',
+            borderRadius: '8px',
+            marginBottom: '20px',
+            fontSize: '13px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <span>{syncMessage.text}</span>
+          <button
+            type="button"
+            onClick={() => setSyncMessage(null)}
+            style={{
+              backgroundColor: 'transparent',
+              border: 'none',
+              color: 'inherit',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 'bold',
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
         <div style={{ backgroundColor: '#111C31', padding: '20px', borderRadius: '12px', border: '1px solid #1E293B', textAlign: 'center' }}>
           <span style={{ fontSize: '12px', color: '#10B981', fontWeight: 'bold' }}>POSITIVE</span>
@@ -188,9 +321,8 @@ export default function SentimentDashboardPage() {
         </div>
       </div>
 
-      {/* Analyze Customer Review Section */}
       <div style={{ backgroundColor: '#111C31', padding: '24px', borderRadius: '12px', border: '1px solid #1E293B', marginBottom: '30px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
           <h2 style={{ fontSize: '18px', fontWeight: '600', margin: 0, color: '#8B5CF6' }}>
             Analyze Customer Review or Feedback
           </h2>
@@ -242,7 +374,7 @@ export default function SentimentDashboardPage() {
                   padding: '10px 14px',
                   color: '#FFFFFF',
                   fontSize: '14px',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
                 }}
               />
             </div>
@@ -265,15 +397,13 @@ export default function SentimentDashboardPage() {
                   padding: '10px 14px',
                   color: '#FFFFFF',
                   fontSize: '14px',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
                 }}
               />
             </div>
           </div>
 
-          {formError && (
-            <div style={{ color: '#F43F5E', fontSize: '13px' }}>{formError}</div>
-          )}
+          {formError && <div style={{ color: '#F43F5E', fontSize: '13px' }}>{formError}</div>}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button
@@ -288,7 +418,7 @@ export default function SentimentDashboardPage() {
                 fontSize: '14px',
                 fontWeight: '600',
                 cursor: isSubmitting || !newText.trim() ? 'not-allowed' : 'pointer',
-                opacity: isSubmitting || !newText.trim() ? 0.6 : 1
+                opacity: isSubmitting || !newText.trim() ? 0.6 : 1,
               }}
             >
               {isSubmitting ? 'Analyzing Sentiment...' : 'Analyze & Save Review'}
@@ -297,7 +427,6 @@ export default function SentimentDashboardPage() {
         </form>
       </div>
 
-      {/* Comment Inbox Section */}
       <div style={{ backgroundColor: '#111C31', padding: '24px', borderRadius: '12px', border: '1px solid #1E293B' }}>
         <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '20px', color: '#8B5CF6' }}>
           Recent Comments & Sentiment Analysis
@@ -310,11 +439,13 @@ export default function SentimentDashboardPage() {
             </div>
           ) : reviews.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '30px', color: '#64748B', fontSize: '14px' }}>
-              No customer comments analyzed yet. Use the form above to analyze your first review.
+              No customer comments analyzed yet. Use the form above or sync Instagram comments.
             </div>
           ) : (
             reviews.map((item) => {
               const badge = getBadgeStyle(item.sentiment);
+              const isFacebook = item.source === 'facebook';
+              const isInstagram = !isFacebook && (item.source === 'instagram' || item.author.startsWith('@'));
               return (
                 <div
                   key={item.id}
@@ -326,13 +457,43 @@ export default function SentimentDashboardPage() {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    gap: '16px'
+                    gap: '16px',
                   }}
                 >
                   <div style={{ flex: 1 }}>
-                    <span style={{ fontSize: '14px', fontWeight: '600', color: '#F8FAFC', display: 'block', marginBottom: '4px' }}>
-                      {item.author}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '14px', fontWeight: '600', color: '#F8FAFC' }}>
+                        {item.author}
+                      </span>
+                      {isFacebook && (
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            color: '#60A5FA',
+                            backgroundColor: '#1E3A8A',
+                            padding: '2px 7px',
+                            borderRadius: '4px',
+                            fontWeight: '600',
+                          }}
+                        >
+                          Facebook
+                        </span>
+                      )}
+                      {isInstagram && (
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            color: '#F472B6',
+                            backgroundColor: '#500724',
+                            padding: '2px 7px',
+                            borderRadius: '4px',
+                            fontWeight: '600',
+                          }}
+                        >
+                          Instagram
+                        </span>
+                      )}
+                    </div>
                     <p style={{ fontSize: '13px', color: '#CBD5E1', margin: 0, lineHeight: '1.4' }}>
                       "{item.comment}"
                     </p>
@@ -348,7 +509,7 @@ export default function SentimentDashboardPage() {
                         fontSize: '12px',
                         fontWeight: 'bold',
                         display: 'inline-block',
-                        marginBottom: '4px'
+                        marginBottom: '4px',
                       }}
                     >
                       {item.sentiment}
